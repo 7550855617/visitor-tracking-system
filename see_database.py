@@ -8,7 +8,7 @@ cursor = conn.cursor()
 cursor.execute("SELECT * FROM visitors")
 rows = cursor.fetchall()
 
-print("ID | Timestamp           | Image Path")
+print("ID | Timestamp           | Image Path |exit_time ")
 print("---------------------------------------")
 for row in rows:
     print(row)
