@@ -1,60 +1,62 @@
-#  Real-Time Unique Visitor Detection System
+
+# Real-Time Unique Visitor Detection System
 
 ##  Overview
 
-This project is a real-time **visitor detection system** that:
-- Detects people using **YOLOv8**
-- Detects faces using **MTCNN**
-- Generates embeddings using **FaceNet**
-- Compares visitors using **cosine similarity**
-- Logs new/unique visitors by storing:
-  - Their face image
-  - A timestamp
-  - A unique embedding (persisted)
-  - An entry in a **SQLite** database
+This project is a real-time **visitor detection and logging system** using:
 
-It ensures the same person is not logged twice unless their appearance is significantly different.
+- **YOLOv8** – for person detection
+- **MTCNN** – for face detection
+- **FaceNet** – for face embedding generation
+- **Cosine Similarity** – to compare faces
+- **SQLite** – to log entries and exit times
+- **Pickle** – to persist known face embeddings
 
----
+It ensures the same person is not logged again unless their appearance is significantly different or they revisit later.
 
-## Project Pipeline
-
-1. **YOLOv8** detects people from webcam frames.
-2. Each person crop is passed to **MTCNN** to detect faces.
-3. Detected faces are encoded using **FaceNet** into 512-dimensional embeddings.
-4. Embeddings are compared with saved embeddings using **cosine similarity**.
-5. If a face is new (similarity < 0.7), it's:
-   - Saved to the `logs/` folder
-   - Logged into the `visitor_log.db` SQLite database
-   - Embedded vector is stored in `known_embeddings.pkl` for future comparison
+> **Hackathon Project**: This project is a part of a hackathon run by [https://katomaran.com](https://katomaran.com)
 
 ---
 
-## 📁 Folder Structure
+## 🔁 Project Pipeline
+
+1. YOLOv8 detects people from webcam frames.
+2. Each detected person is cropped and passed to MTCNN.
+3. MTCNN detects the face(s) from the crop.
+4. FaceNet generates a 512-dimension embedding for the face.
+5. Embeddings are compared with known ones using cosine similarity.
+6. If similarity < threshold (e.g. 0.7), the face is considered new and logged.
+7. If already known:
+   - Either exit time is updated (if continuing visit)
+   - Or a new entry is logged (if revisiting, based on design choice)
+
+---
+
+## Folder Structure
 
 ```
 .
-├── visitor_log.db           # SQLite database to log visitors
-├── known_embeddings.pkl     # Stored embeddings for previously seen visitors
-├── logs/                    # Folder to store cropped face images
-├── visitor.py               # Main script
+├── visitor_log.db           # SQLite database of visitor logs
+├── known_embeddings.pkl     # Stored embeddings with IDs
+├── logs/                    # Saved face images
+├── config.json              # Runtime configuration
+├── visitor.py               # Main application script
 ├── requirements.txt         # Required Python packages
-└── README.md                # This file
+└── README.md                # Project documentation
 ```
 
 ---
 
 ## Requirements
 
-Install all dependencies using:
+Install dependencies with:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-**Contents of `requirements.txt`:**
-
-```
+**requirements.txt**
+```txt
 opencv-python
 numpy
 torch
@@ -64,7 +66,7 @@ Pillow
 ultralytics
 ```
 
-> If you have a CUDA-enabled GPU, install the appropriate PyTorch version from [https://pytorch.org](https://pytorch.org) for better performance.
+> ⚡ Tip: If using GPU, install the correct PyTorch version from [https://pytorch.org](https://pytorch.org).
 
 ---
 
@@ -74,29 +76,81 @@ ultralytics
 python visitor.py
 ```
 
-**Controls:**
-- Press `Q` to exit the webcam window.
+**Controls**:
+- Press `Q` to quit the webcam window.
 
 ---
 
-## 🗃️ What Gets Stored
+## 🧾 What Gets Logged
 
-- **Face images** are saved in `logs/visitor_<timestamp>.jpg`
-- **Database entries** are stored in `visitor_log.db` with:
-  - `id` (auto-increment)
-  - `timestamp` (when seen)
-  - `image_path` (path to the saved image)
+- Cropped face image → `logs/visitor_<timestamp>.jpg`
+- SQLite entry:
+  - `id`
+  - `timestamp` (entry time)
+  - `image_path`
   - `exit_time`
-- **(Face embeddings,id)** are saved in `known_embeddings.pkl`
+- Face embeddings with ID → `known_embeddings.pkl`
 
 ---
 
-## 📊 How to View the Visitor Database
+## Sample `config.json` Structure
 
-You can use any of the following:
+```json
+{
+  "skip_detection": false,
+  "similarity_threshold": 0.7
+}
+```
 
-### ✅ Python script:
+---
 
+## Assumptions Made
+
+- One face per person per frame is enough to identify the visitor.
+- Faces are reasonably clear for embedding to be consistent.
+- Exit time is either updated or new visit is logged on reappearance.
+- Visitors are logged only when a face is detected inside a person box.
+
+---
+
+## Architecture Diagram
+
+```
+               ┌──────────────────────────┐
+               │     OpenCV Webcam        │
+               └────────────┬─────────────┘
+                            ↓
+               ┌──────────────────────────┐
+               │       YOLOv8             │ ← Person detection
+               └────────────┬─────────────┘
+                            ↓
+               ┌──────────────────────────┐
+               │         MTCNN            │ ← Face detection from person box
+               └────────────┬─────────────┘
+                            ↓
+               ┌──────────────────────────┐
+               │       FaceNet            │ ← 512-dim face embedding
+               └────────────┬─────────────┘
+                            ↓
+               ┌──────────────────────────┐
+               │  Cosine Similarity Check │ ← Compare to known faces
+               └─────┬────────────┬───────┘
+                     ↓            ↓
+        ┌──────────────┐   ┌────────────────┐
+        │ New Visitor  │   │ Known Visitor  │
+        └─────┬────────┘   └────┬────────────┘
+              ↓                ↓
+    ┌────────────────┐   ┌────────────────────┐
+    │ Save image to   │   │ Update exit_time or│
+    │ logs/, DB, pkl  │   │ re-log new entry   │
+    └────────────────┘   └────────────────────┘
+```
+
+---
+
+## How to View Visitor Logs
+
+### Python:
 ```python
 import sqlite3
 conn = sqlite3.connect("visitor_log.db")
@@ -107,32 +161,31 @@ for row in cursor.fetchall():
 conn.close()
 ```
 
-### ✅ SQLite CLI:
-
+### SQLite CLI:
 ```bash
 sqlite3 visitor_log.db
 sqlite> SELECT * FROM visitors;
 ```
 
-### ✅ GUI Tool:
-Use **[DB Browser for SQLite](https://sqlitebrowser.org/)** to view, filter, and export the database.
+### 🧰 GUI:
+Use **[DB Browser for SQLite](https://sqlitebrowser.org/)**.
 
 ---
 
-## 🧪 Customization Ideas
+## 🔧 Customization Ideas
 
-- Add face **names or labels**
-- Track **visit frequency** by storing a unique visitor ID
-- Use **FAISS** for fast large-scale face search
-- Add **real-time visitor count** overlay
-- Enable **CSV export** of visitor logs
+- Add face **labels (names)** using manual tagging
+- Calculate **visit duration** (`exit_time - timestamp`)
+- Track **visit frequency per person**
+- Integrate **CSV export** or email summary
+- Add **sound/alert** for unknown person
+- Deploy using **Streamlit** or **Flask** dashboard
 
 ---
 
-## 🙋 Author
+## 👨‍💻 Author
 
 **Developed by:** Suman Acharya  
-If you found this helpful or want to collaborate, feel free to connect!
+**Hackathon:** [Katomaran Hackathon](https://katomaran.com)
 
-
-This project is a part of a hackathon run by https://katomaran.com 
+Feel free to connect or contribute!
