@@ -188,4 +188,6 @@ Use **[DB Browser for SQLite](https://sqlitebrowser.org/)**.
 **Developed by:** Suman Acharya  
 **Hackathon:** [Katomaran Hackathon](https://katomaran.com)
 
+## explanation video link : https://drive.google.com/file/d/1lJDqRuU6url9FgUnVDQDhNCZBDTYyCmY/view?usp=drive_link
+
 Feel free to connect or contribute!
